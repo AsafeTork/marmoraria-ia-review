@@ -1,8 +1,6 @@
 import express from 'express'
 import { createClient } from '@supabase/supabase-js'
 import * as THREE from 'three'
-import { randomUUID } from 'crypto'
-const crypto = { randomUUID }
 
 const app = express()
 app.use(express.json({ limit: '5mb' }))
@@ -230,39 +228,37 @@ function loop(){requestAnimationFrame(loop);OC.update();R.render(S,C)}loop()
 </script></body></html>`
 }
 
-// ─── Jobs assíncronos (R1 pode demorar 60–180s) ──────────────────────────────
-const jobs = new Map() // jobId → { status, id, verts, tokens, tentativas, error }
-
 // ─── Rotas ───────────────────────────────────────────────────────────────────
-app.post('/api/gerar', (req, res) => {
+app.post('/api/gerar', async (req, res) => {
   const { descricao, tipo = 'peca', label } = req.body
   if (!descricao?.trim()) return res.status(400).json({ error: 'descricao obrigatória' })
 
-  const jobId = crypto.randomUUID()
-  jobs.set(jobId, { status: 'gerando' })
-  res.json({ jobId, status: 'gerando' })
+  const lbl = label || descricao.slice(0, 60)
+  const { data: job, error: insertErr } = await sb.from('geracoes')
+    .insert({ descricao, tipo, label: lbl, status: 'gerando', verts: 0, tokens: 0, tentativas: 0 })
+    .select('id').single()
+  if (insertErr) return res.status(500).json({ error: insertErr.message })
 
-  // Executa em background sem bloquear a resposta
+  res.json({ jobId: job.id, status: 'gerando' })
+
   ;(async () => {
     try {
-      const { code, verts, tokens, tentativas, erros } = await gen(descricao, tipo)
-      if (!code) { jobs.set(jobId, { status: 'erro', error: 'IA não gerou código válido', erros }); return }
-      const html = buildHtml(label || descricao.slice(0, 60), code, verts)
-      const { data, error } = await sb.from('geracoes')
-        .insert({ descricao, tipo, label: label || descricao.slice(0, 60), html_code: html, three_code: code, verts, tokens, tentativas })
-        .select('id').single()
-      if (error) throw error
-      jobs.set(jobId, { status: 'concluido', id: data.id, verts, tokens, tentativas })
+      const { code, verts, tokens, tentativas } = await gen(descricao, tipo)
+      if (!code) { await sb.from('geracoes').update({ status: 'erro' }).eq('id', job.id); return }
+      const html = buildHtml(lbl, code, verts)
+      await sb.from('geracoes').update({ html_code: html, three_code: code, verts, tokens, tentativas, status: 'pendente' }).eq('id', job.id)
     } catch(e) {
-      jobs.set(jobId, { status: 'erro', error: e.message })
+      await sb.from('geracoes').update({ status: 'erro' }).eq('id', job.id)
     }
   })()
 })
 
-app.get('/api/gerar/status/:jobId', (req, res) => {
-  const job = jobs.get(req.params.jobId)
-  if (!job) return res.status(404).json({ error: 'job não encontrado' })
-  res.json(job)
+app.get('/api/gerar/status/:jobId', async (req, res) => {
+  const { data, error } = await sb.from('geracoes')
+    .select('id,status,verts,tokens,tentativas').eq('id', req.params.jobId).single()
+  if (error || !data) return res.status(404).json({ error: 'job não encontrado' })
+  if (data.status === 'pendente') return res.json({ status: 'concluido', id: data.id, verts: data.verts, tokens: data.tokens, tentativas: data.tentativas })
+  res.json({ status: data.status, id: data.id })
 })
 
 app.post('/api/votar', async (req, res) => {
