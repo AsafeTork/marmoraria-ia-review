@@ -80,29 +80,42 @@ Metros. Centrado na origem. Primeira linha: // partes: [...]`,
 
 PROIBIDO: new THREE.MeshStandardMaterial, MeshPhongMaterial, MeshLambertMaterial, CircleGeometry, .clone()
 PROIBIDO: const group = new THREE.Group() — group JÁ está no escopo, não redeclare.
-Use mk(geo) para criar meshes — já tem null como material.
+PROIBIDO: rx90(ext(...)) — NUNCA combine rx90 com ext().
 
 Helpers NO escopo (NÃO redefina):
 rr(w,h,r) Shape retangular | rrh(w,h,r) Path hole retangular
 oval(rx,ry) Shape oval | ovalh(rx,ry) Path hole oval
-ext(shape,depth,bev,seg) Mesh HORIZONTAL (já flat) | rx90(m) rotaciona X=-90° — use APENAS com mk(new ExtrudeGeometry) ou LatheGeometry | mk(geo) Mesh(geo,null)
+ext(shape,depth,bev,seg) → Mesh HORIZONTAL (deitado, plano XZ). SEM rx90.
+rx90(m) → rotaciona X=-90°. Use SOMENTE com mk(new THREE.ExtrudeGeometry(...)) para peças VERTICAIS.
+mk(geo) → Mesh(geo,null)
 
-REGRA rx90: após rx90, mesh ocupa Y de position.y até position.y+depth.
+══ PADRÕES OBRIGATÓRIOS ══
 
-══ PADRÕES DE CONSTRUÇÃO ══
+PLACA HORIZONTAL (bancada/tampo/soleira/peitoril):
+  const pl=ext(rr(L,W,0.01),H,0.005,8); pl.position.y=0; group.add(pl)
+  // H=espessura: 0.02–0.04m. ext() já deixa deitado — NÃO use rx90.
 
-PLACA PLANA (bancada/tampo/soleira/peitoril):
-  const pl=rx90(ext(rr(L,W,0.01),0.03,0.005,8)); pl.position.y=0; group.add(pl)
-  // espessura 0.02–0.04m. NUNCA acima de 0.05m.
+BANCADA EM L (duas placas horizontais que formam L):
+  const p1=ext(rr(L1,W,0.01),H,0.005,8); p1.position.set(0,0,0); group.add(p1)
+  const p2=ext(rr(L2,W2,0.01),H,0.005,8); p2.position.set(L1/2-L2/2, 0, -W/2-W2/2); group.add(p2)
+  // p2 encaixa perpendicular no canto de p1. Ajuste position.x e position.z para não sobrepor.
 
-PLACA COM FURO (bancada + cuba embutida):
-  const s=rr(L,W,0.01); s.holes=[ovalh(rx,ry)];
-  const pl=rx90(ext(s,0.03,0.005,8)); pl.position.y=0; group.add(pl)
+PLACA HORIZONTAL COM FURO (bancada + cuba embutida):
+  const s=rr(L,W,0.01); s.holes=[ovalh(rx,ry)]
+  const pl=ext(s,H,0.005,8); pl.position.y=0; group.add(pl)
 
-PEÇA LEVE COM FUNDO (lavatório/cuba de sobrepor):
-  const s=rr(W,L,0.02); s.holes=[rrh(Wi,Li,0.02)];
-  const fr=rx90(ext(s,H,0.01,8)); fr.position.y=0; group.add(fr)
-  const fd=rx90(ext(rr(Wi,Li,0.02),0.015,0)); fd.position.y=0.05; group.add(fd)
+PEÇA VERTICAL (saia frontal / frontão / salpicador):
+  // Usar mk(new THREE.ExtrudeGeometry(...)) + rx90() para peça VERTICAL
+  const sfGeo=new THREE.ExtrudeGeometry(rr(L,Hv,0.01),{depth:T,bevelEnabled:true,bevelSize:0.003,bevelThickness:0.003,bevelSegments:4})
+  const sf=rx90(mk(sfGeo))
+  sf.position.set(0, Hv/2, -W/2+T/2)  // centralizado, na frente da bancada
+  group.add(sf)
+  // Hv=altura da saia 0.06–0.10m | T=espessura 0.02–0.03m
+
+CUBA DE SOBREPOR (lavatório):
+  const s=rr(W,L,0.02); s.holes=[rrh(Wi,Li,0.02)]
+  const fr=ext(s,H,0.01,8); fr.position.y=0; group.add(fr)
+  const fd=ext(rr(Wi,Li,0.02),0.015,0); fd.position.y=H+0.005; group.add(fd)
 
 PEDESTAL/COLUNA (LatheGeometry):
   const pts=[]
@@ -117,9 +130,9 @@ PEDESTAL/COLUNA (LatheGeometry):
   // diferença de raio entre pontos consecutivos ≤ 0.03m
 
 ══ PROPORÇÕES REAIS ══
-Bancada/tampo/soleira/peitoril: espessura 0.02–0.04m
-Saia frontal: 0.06–0.10m altura, mesma espessura da bancada
-Frontão/salpicador: 0.10–0.15m altura, 0.02m espessura
+Bancada/tampo/soleira/peitoril: espessura H=0.02–0.04m
+Saia frontal: Hv=0.06–0.10m altura, T=mesma espessura da bancada
+Frontão/salpicador: Hv=0.10–0.15m altura, T=0.02m
 Cuba embutida: 0.45×0.35m, profundidade 0.15m, paredes 0.04m
 
 Metros. Centrado na origem. Primeira linha: // partes: [...]`
