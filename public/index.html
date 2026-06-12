@@ -311,10 +311,8 @@ async function gerar() {
     if (!r.ok || d.error) throw new Error(d.error || 'Erro na geração')
 
     currentId = d.id
-    const blob = new Blob([d.html], { type: 'text/html' })
-    const url = URL.createObjectURL(blob)
     const frame = document.getElementById('v-frame')
-    frame.src = url
+    frame.src = '/api/geracao/' + d.id + '/html'
     frame.style.display = 'block'
     document.getElementById('v-loading').style.display = 'none'
 
