@@ -95,11 +95,17 @@ function runCode(code) {
 }
 
 async function askDS(msgs) {
-  const r = await fetch('https://api.deepseek.com/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${DS_KEY}` },
-    body: JSON.stringify({ model: 'deepseek-reasoner', max_tokens: 20000, messages: msgs })
-  })
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), 300_000) // 5min timeout
+  let r
+  try {
+    r = await fetch('https://api.deepseek.com/v1/chat/completions', {
+      signal: ctrl.signal,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${DS_KEY}` },
+      body: JSON.stringify({ model: 'deepseek-reasoner', max_tokens: 8000, messages: msgs })
+    })
+  } finally { clearTimeout(timer) }
   const d = await r.json()
   if (!d.choices) throw new Error(d.error?.message ?? 'DeepSeek sem resposta')
   const msg = d.choices[0].message
