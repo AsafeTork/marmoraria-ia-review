@@ -379,7 +379,7 @@ app.get('/api/ping', (_req, res) => {
   try {
     const code = `
 const s = rr(1.5, 0.6, 0.01)
-const pl = rx90(mk(ext(s, 0.03, 0.013, 12)))
+const pl = rx90(ext(s, 0.03, 0.013, 12))
 pl.position.y = 0
 group.add(pl)
 return group`
