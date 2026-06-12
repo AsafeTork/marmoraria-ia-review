@@ -16,7 +16,7 @@ function rr(w,h,r){const s=new THREE.Shape();s.moveTo(-w/2+r,-h/2);s.lineTo(w/2-
 function rrh(w,h,r){const p=new THREE.Path();p.moveTo(-w/2+r,-h/2);p.lineTo(w/2-r,-h/2);p.quadraticCurveTo(w/2,-h/2,w/2,-h/2+r);p.lineTo(w/2,h/2-r);p.quadraticCurveTo(w/2,h/2,w/2-r,h/2);p.lineTo(-w/2+r,h/2);p.quadraticCurveTo(-w/2,h/2,-w/2,h/2-r);p.lineTo(-w/2,-h/2+r);p.quadraticCurveTo(-w/2,-h/2,-w/2+r,-h/2);return p;}
 function oval(rx,ry,segs=48){const s=new THREE.Shape();const pts=[];for(let i=0;i<=segs;i++){const a=i/segs*Math.PI*2;pts.push(new THREE.Vector2(Math.cos(a)*rx,Math.sin(a)*ry));}s.setFromPoints(pts);return s;}
 function ovalh(rx,ry,segs=48){const p=new THREE.Path();for(let i=0;i<=segs;i++){const a=i/segs*Math.PI*2;i===0?p.moveTo(Math.cos(a)*rx,Math.sin(a)*ry):p.lineTo(Math.cos(a)*rx,Math.sin(a)*ry);}return p;}
-function ext(shape,depth,bev=0.005,seg=6){return new THREE.ExtrudeGeometry(shape,{depth,bevelEnabled:!!bev,bevelSize:bev,bevelThickness:bev,bevelSegments:seg});}
+function ext(shape,depth,bev=0.005,seg=6){const geo=new THREE.ExtrudeGeometry(shape,{depth,bevelEnabled:!!bev,bevelSize:bev,bevelThickness:bev,bevelSegments:seg});return new THREE.Mesh(geo,null);}
 function rx90(m){m.rotation.x=-Math.PI/2;return m;}
 function mk(geo){return new THREE.Mesh(geo,null);}
 `
@@ -27,7 +27,7 @@ const DEFAULT_PROMPTS = {
 
 PROIBIDO: new THREE.MeshStandardMaterial, MeshPhongMaterial, MeshLambertMaterial, CircleGeometry, .clone()
 PROIBIDO: const group = new THREE.Group() — group JÁ está no escopo.
-Use mk(geo) — já tem null como material.
+ext(...) JÁ retorna Mesh — não envolva com mk(). Use mk() apenas com LatheGeometry ou new THREE.ExtrudeGeometry manual.
 Helpers no escopo: rr,rrh,oval,ovalh,ext,rx90,mk
 
 REGRA rx90: mesh ocupa Y de position.y até position.y+depth.
@@ -84,24 +84,24 @@ Use mk(geo) para criar meshes — já tem null como material.
 Helpers NO escopo (NÃO redefina):
 rr(w,h,r) Shape retangular | rrh(w,h,r) Path hole retangular
 oval(rx,ry) Shape oval | ovalh(rx,ry) Path hole oval
-ext(shape,depth,bev,seg) ExtrudeGeometry | rx90(m) rotaciona X=-90° | mk(geo) Mesh(geo,null)
+ext(shape,depth,bev,seg) retorna Mesh | rx90(m) rotaciona X=-90° | mk(geo) Mesh(geo,null) — use mk() apenas com LatheGeometry ou ExtrudeGeometry manual
 
 REGRA rx90: após rx90, mesh ocupa Y de position.y até position.y+depth.
 
 ══ PADRÕES DE CONSTRUÇÃO ══
 
 PLACA PLANA (bancada/tampo/soleira/peitoril):
-  const pl=rx90(mk(ext(rr(L,W,0.01),0.03,0.005,8))); pl.position.y=0; group.add(pl)
+  const pl=rx90(ext(rr(L,W,0.01),0.03,0.005,8)); pl.position.y=0; group.add(pl)
   // espessura 0.02–0.04m. NUNCA acima de 0.05m.
 
 PLACA COM FURO (bancada + cuba embutida):
   const s=rr(L,W,0.01); s.holes=[ovalh(rx,ry)];
-  const pl=rx90(mk(ext(s,0.03,0.005,8))); pl.position.y=0; group.add(pl)
+  const pl=rx90(ext(s,0.03,0.005,8)); pl.position.y=0; group.add(pl)
 
 PEÇA LEVE COM FUNDO (lavatório/cuba de sobrepor):
   const s=rr(W,L,0.02); s.holes=[rrh(Wi,Li,0.02)];
-  const fr=rx90(mk(ext(s,H,0.01,8))); fr.position.y=0; group.add(fr)
-  const fd=rx90(mk(ext(rr(Wi,Li,0.02),0.015,0))); fd.position.y=0.05; group.add(fd)
+  const fr=rx90(ext(s,H,0.01,8)); fr.position.y=0; group.add(fr)
+  const fd=rx90(ext(rr(Wi,Li,0.02),0.015,0)); fd.position.y=0.05; group.add(fd)
 
 PEDESTAL/COLUNA (LatheGeometry):
   const pts=[]
