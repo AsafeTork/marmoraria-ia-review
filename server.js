@@ -393,7 +393,24 @@ return group`
 app.post('/api/debug-gen', async (req, res) => {
   const { descricao = 'Bancada 1.5m boleada', tipo = 'boleado' } = req.body
   const result = await gen(descricao, tipo)
-  res.json({ ...result, code: result.code ? result.code.slice(0, 200) + '...' : null })
+  res.json({ verts: result.verts, tokens: result.tokens, tentativas: result.tentativas, erros: result.erros, codeSnippet: result.code?.slice(0,400) })
+})
+
+// retorna raw DeepSeek + erro runCode sem retry
+app.post('/api/debug-raw', async (req, res) => {
+  const { descricao = 'Bancada 1.5m boleada', tipo = 'boleado' } = req.body
+  const sys = await getActivePrompt(tipo)
+  const instrucao = getAcabInstrucao(tipo)
+  const userMsg = instrucao ? `${instrucao}\n\nDescrição: ${descricao}` : `Crie: ${descricao}`
+  try {
+    const { text, tokens } = await askDS([{role:'system',content:sys},{role:'user',content:userMsg}])
+    const code = extract(text)
+    let runErr = null, verts = 0
+    try { const r = runCode(code); verts = r.v } catch(e) { runErr = e.message }
+    res.json({ tokens, rawCode: code.slice(0, 600), runErr, verts })
+  } catch(e) {
+    res.status(500).json({ error: e.message })
+  }
 })
 
 const PORT = process.env.PORT || 3000
