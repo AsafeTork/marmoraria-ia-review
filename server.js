@@ -147,7 +147,7 @@ async function askDS(msgs) {
   const r = await fetch('https://api.deepseek.com/v1/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${DS_KEY}` },
-    body: JSON.stringify({ model: 'deepseek-chat', max_tokens: 1400, temperature: 0.2, messages: msgs })
+    body: JSON.stringify({ model: 'deepseek-chat', max_tokens: 20000, temperature: 0.2, messages: msgs })
   })
   const d = await r.json()
   if (!d.choices) throw new Error(d.error?.message ?? 'DeepSeek sem resposta')
