@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Marmoraria IA — Revisão de Modelos 3D</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0f172a;color:#e2e8f0;font-family:system-ui,sans-serif;min-height:100vh}
+nav{background:#1e293b;border-bottom:1px solid #334155;padding:0 24px;display:flex;align-items:center;height:56px;gap:0}
+.logo{font-weight:700;font-size:15px;color:#f1f5f9;margin-right:32px;letter-spacing:-.02em;white-space:nowrap}
+.logo span{color:#6366f1}
+.tab{padding:0 16px;height:56px;display:flex;align-items:center;color:#94a3b8;font-size:13px;font-weight:500;cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;user-select:none}
+.tab:hover{color:#e2e8f0}
+.tab.on{color:#818cf8;border-bottom-color:#6366f1}
+main{max-width:1200px;margin:0 auto;padding:28px 24px}
+.page{display:none}.page.on{display:block}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+.card{background:#1e293b;border-radius:12px;border:1px solid #334155;overflow:hidden;cursor:pointer;transition:border-color .15s,transform .15s}
+.card:hover{border-color:#6366f1;transform:translateY(-2px)}
+.field{margin-bottom:16px}
+label{display:block;font-size:12px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
+input,textarea,select{width:100%;background:#1e293b;border:1px solid #334155;color:#e2e8f0;border-radius:8px;padding:10px 12px;font-size:14px;font-family:inherit;transition:border-color .15s}
+input:focus,textarea:focus,select:focus{outline:none;border-color:#6366f1}
+textarea{resize:vertical}
+select option{background:#1e293b}
+.btn{padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .15s;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+.btn-primary{background:#6366f1;color:#fff}.btn-primary:hover{background:#5053e0}
+.btn-primary:disabled{background:#3730a3;opacity:.6;cursor:not-allowed}
+.btn-success{background:#22c55e;color:#fff}.btn-success:hover{background:#16a34a}
+.btn-danger{background:#ef4444;color:#fff}.btn-danger:hover{background:#dc2626}
+.btn-ghost{background:transparent;border:1px solid #334155;color:#94a3b8}
+.btn-ghost:hover{border-color:#6366f1;color:#e2e8f0}
+.badge{display:inline-flex;align-items:center;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600;letter-spacing:.04em}
+.badge-pendente{background:#1e3a5f;color:#60a5fa}
+.badge-aprovado{background:#14532d;color:#4ade80}
+.badge-rejeitado{background:#450a0a;color:#f87171}
+.viewer-wrap{position:relative;background:#111827;border-radius:12px;overflow:hidden;border:1px solid #334155}
+.viewer-wrap iframe{display:block;width:100%;height:460px;border:none}
+.overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,.7);backdrop-filter:blur(4px);z-index:10}
+.spin{width:36px;height:36px;border:3px solid #334155;border-top-color:#6366f1;border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.stat-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px}
+.stat{background:#1e293b;border-radius:10px;border:1px solid #334155;padding:16px 20px;flex:1;min-width:110px}
+.stat-val{font-size:26px;font-weight:700;color:#f1f5f9}
+.stat-lbl{font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.08em;margin-top:2px}
+.vote-section{background:#1e293b;border-radius:12px;border:1px solid #334155;padding:20px;margin-top:16px}
+.prompt-box{background:#0f172a;border:1px solid #334155;border-radius:8px;padding:16px;font-family:'Cascadia Code','Fira Mono',monospace;font-size:12px;line-height:1.6;color:#94a3b8;white-space:pre-wrap;max-height:420px;overflow-y:auto}
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}
+.filter{padding:5px 14px;border-radius:999px;border:1px solid #334155;background:transparent;color:#94a3b8;font-size:12px;cursor:pointer;transition:all .15s;user-select:none}
+.filter:hover,.filter.on{background:#6366f1;border-color:#6366f1;color:#fff}
+.card-body{padding:14px}
+.card-title{font-size:13px;font-weight:600;color:#e2e8f0;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card-desc{font-size:11px;color:#475569;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.card-meta{display:flex;align-items:center;justify-content:space-between;margin-top:10px}
+.card-stats{font-size:10px;color:#475569}
+#modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:100;align-items:center;justify-content:center;padding:20px}
+#modal.show{display:flex}
+.modal-box{background:#1e293b;border-radius:16px;border:1px solid #334155;width:min(96vw,960px);max-height:92vh;overflow-y:auto;padding:24px}
+.modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.modal-title{font-size:16px;font-weight:700;color:#f1f5f9}
+.modal-close{background:none;border:none;color:#64748b;font-size:20px;cursor:pointer;padding:4px 8px;border-radius:4px}
+.modal-close:hover{color:#e2e8f0;background:#334155}
+h2{font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.08em;margin:24px 0 14px;padding-bottom:8px;border-bottom:1px solid #1e293b}
+.row{display:flex;gap:16px;flex-wrap:wrap}
+.col{flex:1;min-width:200px}
+.text-muted{color:#475569;font-size:12px}
+.mt8{margin-top:8px}.mt16{margin-top:16px}
+.voto-item{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px solid #0f172a}
+.voto-item:last-child{border-bottom:none}
+.voto-nome{font-size:12px;font-weight:600;color:#94a3b8}
+.voto-com{font-size:12px;color:#475569;margin-top:2px}
+.copy-wrap{position:relative}
+.copy-btn{position:absolute;top:8px;right:8px;background:#334155;color:#94a3b8;border:none;border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;transition:all .15s}
+.copy-btn:hover{background:#475569;color:#e2e8f0}
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#22c55e;color:#fff;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;z-index:999;display:none;white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,.4)}
+#toast.err{background:#ef4444}
+#toast.show{display:block}
+.progress{background:#0f172a;border-radius:6px;height:6px;overflow:hidden;margin-top:8px}
+.progress-bar{background:#22c55e;height:100%;transition:width .3s}
+.ver-tag{display:inline-block;background:#1e3a5f;color:#60a5fa;padding:1px 8px;border-radius:4px;font-size:10px;font-weight:600;margin-right:6px}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="logo">&#10022; Marmoraria <span>IA</span></div>
+  <div class="tab on" onclick="goto('gerar',this)">Gerar</div>
+  <div class="tab" onclick="goto('galeria',this)">Galeria</div>
+  <div class="tab" onclick="goto('prompts',this)">Prompts</div>
+  <div class="tab" onclick="goto('stats',this)">Stats</div>
+</nav>
+
+<main>
+
+<!-- ══ GERAR ══ -->
+<div class="page on" id="page-gerar">
+  <div class="row">
+    <div class="col" style="max-width:380px">
+      <h2>Nova Geração</h2>
+      <div class="field">
+        <label>Seu nome</label>
+        <input type="text" id="g-nome" placeholder="João, Maria...">
+      </div>
+      <div class="field">
+        <label>Tipo</label>
+        <select id="g-tipo">
+          <option value="peca">Peça livre (bancada, soleira, tampo...)</option>
+          <optgroup label="Acabamentos">
+            <option value="boleado">Boleado</option>
+            <option value="chanfro45">Chanfro 45°</option>
+            <option value="meia_cana">Meia Cana</option>
+            <option value="ogee">Ogee (curva S)</option>
+            <option value="duplo_boleado">Duplo Boleado</option>
+            <option value="peito_pombo">Peito de Pombo</option>
+          </optgroup>
+        </select>
+      </div>
+      <div class="field">
+        <label>Descrição da peça</label>
+        <textarea id="g-desc" rows="5" placeholder="Ex: Bancada de granito preto 1.5m × 0.60m × 3cm com furo oval 0.45×0.33m para cuba embutida no centro. Borda frontal com acabamento boleado."></textarea>
+      </div>
+      <button class="btn btn-primary" id="g-btn" onclick="gerar()" style="width:100%">
+        ⚡ Gerar Modelo 3D
+      </button>
+      <div id="g-info" class="text-muted mt8" style="font-size:11px"></div>
+    </div>
+
+    <div class="col" style="flex:2;min-width:320px">
+      <h2>Visualização 3D</h2>
+      <div class="viewer-wrap">
+        <div class="overlay" id="v-empty">
+          <div style="text-align:center;color:#334155">
+            <div style="font-size:52px;margin-bottom:8px;opacity:.4">◈</div>
+            <div style="font-size:13px">Gere um modelo para visualizar aqui</div>
+            <div style="font-size:11px;margin-top:4px;color:#1e3a5f">Arraste para girar · Scroll para zoom</div>
+          </div>
+        </div>
+        <div class="overlay" id="v-loading" style="display:none">
+          <div style="text-align:center">
+            <div class="spin" style="margin:0 auto 14px"></div>
+            <div style="font-size:14px;font-weight:600;color:#94a3b8">Gerando com DeepSeek...</div>
+            <div id="g-status" style="font-size:11px;color:#475569;margin-top:4px"></div>
+          </div>
+        </div>
+        <iframe id="v-frame" src="about:blank" style="display:none"></iframe>
+      </div>
+
+      <div class="vote-section" id="vote-section" style="display:none">
+        <div class="row" style="margin-bottom:14px;align-items:center">
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:600;color:#e2e8f0" id="v-label"></div>
+            <div class="text-muted mt8" id="v-stats" style="font-size:11px"></div>
+          </div>
+          <span id="v-badge" class="badge badge-pendente">Pendente</span>
+        </div>
+        <div style="display:flex;gap:10px;margin-bottom:14px">
+          <button class="btn btn-success" onclick="votar('aprovado')" style="flex:1">✓ Aprovar</button>
+          <button class="btn btn-danger" onclick="votar('rejeitado')" style="flex:1">✗ Rejeitar</button>
+        </div>
+        <div class="field" style="margin-bottom:8px">
+          <label>Comentário (opcional — o que está bom ou precisa melhorar)</label>
+          <textarea id="v-comment" rows="2" placeholder="Ex: Boleado muito pequeno, quase invisível. Ou: Perfeito, exatamente como esperado."></textarea>
+        </div>
+        <div id="v-votos"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ GALERIA ══ -->
+<div class="page" id="page-galeria">
+  <h2>Todas as Gerações</h2>
+  <div class="filters">
+    <div class="filter on" onclick="filtrar(null,this)">Todas</div>
+    <div class="filter" onclick="filtrar('pendente',this)">Pendentes</div>
+    <div class="filter" onclick="filtrar('aprovado',this)">Aprovadas</div>
+    <div class="filter" onclick="filtrar('rejeitado',this)">Rejeitadas</div>
+  </div>
+  <div class="grid" id="galeria-grid">
+    <div class="text-muted">Carregando...</div>
+  </div>
+</div>
+
+<!-- ══ PROMPTS ══ -->
+<div class="page" id="page-prompts">
+  <h2>Prompts Ativos</h2>
+  <p class="text-muted" style="margin-bottom:16px;line-height:1.6">
+    Esses são os prompts enviados ao DeepSeek. Copie, edite e salve uma nova versão para melhorar as gerações.
+    Cada save cria uma nova versão — o anterior é desativado mas não apagado.
+  </p>
+  <div style="display:flex;gap:10px;margin-bottom:16px">
+    <button class="btn btn-ghost" id="p-tab-acabamentos" onclick="showPrompt('acabamentos',this)" style="border-color:#6366f1;color:#818cf8">Acabamentos</button>
+    <button class="btn btn-ghost" id="p-tab-pecas" onclick="showPrompt('pecas',this)">Peças</button>
+  </div>
+  <div class="copy-wrap">
+    <button class="copy-btn" onclick="copyPrompt()">Copiar</button>
+    <pre class="prompt-box" id="prompt-content">Carregando...</pre>
+  </div>
+
+  <h2 style="margin-top:28px">Editar e Salvar Nova Versão</h2>
+  <div class="field">
+    <textarea id="p-edit" style="font-family:monospace;font-size:12px;min-height:220px;line-height:1.5" placeholder="Cole ou edite o prompt aqui..."></textarea>
+  </div>
+  <button class="btn btn-primary" onclick="savePrompt()">Salvar como nova versão</button>
+  <div id="p-msg" class="text-muted mt8"></div>
+</div>
+
+<!-- ══ STATS ══ -->
+<div class="page" id="page-stats">
+  <h2>Dashboard</h2>
+  <div class="stat-row" id="stat-row">
+    <div class="text-muted">Carregando...</div>
+  </div>
+  <h2>Por Tipo</h2>
+  <div class="grid" id="stat-tipos"></div>
+
+  <h2 style="margin-top:28px">Como funciona</h2>
+  <div style="background:#1e293b;border-radius:12px;border:1px solid #334155;padding:20px;line-height:1.8;font-size:13px;color:#94a3b8">
+    <b style="color:#e2e8f0">Fluxo:</b>
+    Você escreve uma descrição → <span style="color:#818cf8">POST /api/gerar</span> → DeepSeek gera código Three.js
+    → servidor valida (mínimo 80 vértices, group não vazio) → até 3 tentativas automáticas
+    → HTML com viewer 3D salvo no Supabase → exibido no iframe → você aprova ou rejeita.
+    <br><br>
+    <b style="color:#e2e8f0">Para outras IAs:</b>
+    Acesse <span style="color:#818cf8">GET /api/system</span> para o schema completo de endpoints e como integrar.
+    Os prompts ativos estão em <span style="color:#818cf8">GET /api/prompts</span> e podem ser editados via
+    <span style="color:#818cf8">POST /api/prompts</span> sem restartar o servidor.
+    <br><br>
+    <b style="color:#e2e8f0">Melhorar o prompt:</b>
+    Vá em <b>Prompts</b>, copie o atual, edite com base nos rejeitos da galeria,
+    salve nova versão. A próxima geração já usa o novo prompt.
+  </div>
+</div>
+
+</main>
+
+<!-- Modal detalhe -->
+<div id="modal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title" id="m-title">—</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="viewer-wrap" style="margin-bottom:16px">
+      <iframe id="m-frame" style="height:400px;width:100%;display:block;border:none"></iframe>
+    </div>
+    <div class="row">
+      <div class="col">
+        <div style="font-size:12px;color:#64748b" id="m-desc"></div>
+        <div class="text-muted mt8" id="m-stats" style="font-size:11px"></div>
+        <div style="margin-top:10px" id="m-badge"></div>
+      </div>
+    </div>
+    <div id="m-votos" style="margin-top:16px"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+let currentId = null
+let currentPromptTipo = 'acabamentos'
+let promptsCache = {}
+let galeriaFilter = null
+
+// ─── Nav ─────────────────────────────────────────────────────────
+function goto(page, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('on'))
+  document.querySelectorAll('.tab').forEach(b => b.classList.remove('on'))
+  document.getElementById('page-' + page).classList.add('on')
+  btn.classList.add('on')
+  if (page === 'galeria') loadGaleria()
+  if (page === 'stats') loadStats()
+  if (page === 'prompts') loadPrompts()
+}
+
+// ─── Toast ────────────────────────────────────────────────────────
+function toast(msg, err=false) {
+  const t = document.getElementById('toast')
+  t.textContent = msg
+  t.className = 'show' + (err ? ' err' : '')
+  clearTimeout(t._t)
+  t._t = setTimeout(() => t.className = '', 3500)
+}
+
+// ─── Gerar ────────────────────────────────────────────────────────
+async function gerar() {
+  const nome = document.getElementById('g-nome').value.trim()
+  const desc = document.getElementById('g-desc').value.trim()
+  const tipo = document.getElementById('g-tipo').value
+  if (!nome) { toast('Coloque seu nome primeiro', true); return }
+  if (desc.length < 10) { toast('Descrição muito curta', true); return }
+
+  const btn = document.getElementById('g-btn')
+  btn.disabled = true
+  document.getElementById('v-empty').style.display = 'none'
+  document.getElementById('v-loading').style.display = 'flex'
+  document.getElementById('v-frame').style.display = 'none'
+  document.getElementById('vote-section').style.display = 'none'
+  document.getElementById('g-info').textContent = ''
+  document.getElementById('g-status').textContent = 'Chamando DeepSeek...'
+
+  try {
+    const r = await fetch('/api/gerar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ descricao: desc, tipo, label: desc.slice(0, 60) })
+    })
+    const d = await r.json()
+    if (!r.ok || d.error) throw new Error(d.error || 'Erro na geração')
+
+    currentId = d.id
+    const blob = new Blob([d.html], { type: 'text/html' })
+    const url = URL.createObjectURL(blob)
+    const frame = document.getElementById('v-frame')
+    frame.src = url
+    frame.style.display = 'block'
+    document.getElementById('v-loading').style.display = 'none'
+
+    document.getElementById('vote-section').style.display = 'block'
+    document.getElementById('v-label').textContent = desc.slice(0, 80)
+    document.getElementById('v-stats').textContent =
+      `${(d.verts||0).toLocaleString()} vértices  ·  ${(d.tokens||0).toLocaleString()} tokens  ·  ${d.tentativas} tentativa(s)`
+    document.getElementById('v-badge').className = 'badge badge-pendente'
+    document.getElementById('v-badge').textContent = 'Pendente'
+    document.getElementById('v-comment').value = ''
+    document.getElementById('v-votos').innerHTML = ''
+    document.getElementById('g-info').textContent = `ID: ${d.id.slice(0,8)}...`
+  } catch(e) {
+    toast('Erro: ' + e.message, true)
+    document.getElementById('v-loading').style.display = 'none'
+    document.getElementById('v-empty').style.display = 'flex'
+  }
+  btn.disabled = false
+}
+
+async function votar(voto) {
+  if (!currentId) return
+  const nome = document.getElementById('g-nome').value.trim()
+  if (!nome) { toast('Coloque seu nome primeiro', true); return }
+  const comentario = document.getElementById('v-comment').value.trim()
+  try {
+    const r = await fetch('/api/votar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ geracaoId: currentId, voto, comentario, votadoPor: nome })
+    })
+    if (!r.ok) throw new Error('Erro ao registrar voto')
+    const badge = document.getElementById('v-badge')
+    badge.className = 'badge badge-' + voto
+    badge.textContent = voto === 'aprovado' ? '✓ Aprovado' : '✗ Rejeitado'
+    toast(voto === 'aprovado' ? '✓ Aprovado!' : '✗ Rejeitado.')
+    loadVotos(currentId, 'v-votos')
+  } catch(e) {
+    toast(e.message, true)
+  }
+}
+
+async function loadVotos(id, targetId) {
+  const r = await fetch('/api/votos/' + id)
+  const votos = await r.json()
+  const el = document.getElementById(targetId)
+  if (!votos?.length) { el.innerHTML = ''; return }
+  el.innerHTML = '<div style="font-size:11px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Votos registrados</div>' +
+    votos.map(v => `<div class="voto-item">
+      <span class="badge badge-${v.voto}" style="flex-shrink:0">${v.voto}</span>
+      <div>
+        <div class="voto-nome">${v.votado_por}</div>
+        ${v.comentario ? `<div class="voto-com">${v.comentario}</div>` : ''}
+      </div>
+    </div>`).join('')
+}
+
+// ─── Galeria ──────────────────────────────────────────────────────
+async function loadGaleria() {
+  let url = '/api/geracoes'
+  if (galeriaFilter) url += '?status=' + galeriaFilter
+  const r = await fetch(url)
+  const items = await r.json()
+  const grid = document.getElementById('galeria-grid')
+  if (!items?.length) {
+    grid.innerHTML = '<div class="text-muted" style="padding:20px">Nenhuma geração ainda. Vá em Gerar para criar a primeira.</div>'
+    return
+  }
+  grid.innerHTML = items.map(g => `
+    <div class="card" onclick="openModal('${g.id}')">
+      <div class="card-body">
+        <div class="card-title">${g.label || g.descricao.slice(0,50)}</div>
+        <div class="card-desc">${g.descricao}</div>
+        <div class="card-meta">
+          <div class="card-stats">${(g.verts||0).toLocaleString()}v · ${(g.tokens||0).toLocaleString()}tok · t${g.tentativas||1}</div>
+          <span class="badge badge-${g.status}">${g.status}</span>
+        </div>
+        <div style="font-size:10px;color:#334155;margin-top:6px">${g.tipo||'peca'} · ${new Date(g.criado_em).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})}</div>
+      </div>
+    </div>`).join('')
+}
+
+function filtrar(status, btn) {
+  document.querySelectorAll('.filter').forEach(b => b.classList.remove('on'))
+  btn.classList.add('on')
+  galeriaFilter = status
+  loadGaleria()
+}
+
+// ─── Modal ────────────────────────────────────────────────────────
+async function openModal(id) {
+  document.getElementById('modal').classList.add('show')
+  document.getElementById('m-frame').src = '/api/geracao/' + id + '/html'
+  const r = await fetch('/api/geracao/' + id)
+  const g = await r.json()
+  document.getElementById('m-title').textContent = g.label || g.descricao.slice(0,60)
+  document.getElementById('m-desc').textContent = g.descricao
+  document.getElementById('m-stats').textContent =
+    `${(g.verts||0).toLocaleString()} vértices · ${(g.tokens||0).toLocaleString()} tokens · ${g.tentativas||1} tentativa(s) · ${g.tipo||'peca'}`
+  document.getElementById('m-badge').innerHTML = `<span class="badge badge-${g.status}">${g.status}</span>`
+  await loadVotos(id, 'm-votos')
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('show')
+  document.getElementById('m-frame').src = 'about:blank'
+}
+document.getElementById('modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('modal')) closeModal()
+})
+
+// ─── Prompts ──────────────────────────────────────────────────────
+async function loadPrompts() {
+  const r = await fetch('/api/prompts')
+  const list = await r.json()
+  list.forEach(p => { promptsCache[p.tipo] = p.conteudo })
+  showPrompt(currentPromptTipo, document.getElementById('p-tab-' + currentPromptTipo))
+}
+
+function showPrompt(tipo, btn) {
+  currentPromptTipo = tipo
+  document.querySelectorAll('#page-prompts .btn-ghost').forEach(b => {
+    b.style.borderColor = '#334155'; b.style.color = '#94a3b8'
+  })
+  btn.style.borderColor = '#6366f1'; btn.style.color = '#818cf8'
+  const content = promptsCache[tipo] || 'Carregando...'
+  document.getElementById('prompt-content').textContent = content
+  document.getElementById('p-edit').value = content
+}
+
+function copyPrompt() {
+  const text = document.getElementById('prompt-content').textContent
+  navigator.clipboard.writeText(text).then(() => toast('Copiado!'))
+}
+
+async function savePrompt() {
+  const conteudo = document.getElementById('p-edit').value.trim()
+  if (!conteudo) { toast('Prompt vazio', true); return }
+  const r = await fetch('/api/prompts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tipo: currentPromptTipo, conteudo })
+  })
+  const d = await r.json()
+  if (r.ok) {
+    toast('Prompt v' + d.versao + ' salvo!')
+    promptsCache[currentPromptTipo] = conteudo
+    document.getElementById('prompt-content').textContent = conteudo
+    document.getElementById('p-msg').textContent = 'Versão ' + d.versao + ' ativa. Próximas gerações já usam este prompt.'
+  } else {
+    toast(d.error || 'Erro ao salvar', true)
+  }
+}
+
+// ─── Stats ────────────────────────────────────────────────────────
+async function loadStats() {
+  const r = await fetch('/api/stats')
+  const s = await r.json()
+  const pct = s.total ? Math.round((s.aprovados||0)/s.total*100) : 0
+  document.getElementById('stat-row').innerHTML = `
+    <div class="stat"><div class="stat-val">${s.total||0}</div><div class="stat-lbl">Total Gerado</div></div>
+    <div class="stat"><div class="stat-val" style="color:#4ade80">${s.aprovados||0}</div><div class="stat-lbl">Aprovados</div></div>
+    <div class="stat"><div class="stat-val" style="color:#f87171">${s.rejeitados||0}</div><div class="stat-lbl">Rejeitados</div></div>
+    <div class="stat"><div class="stat-val" style="color:#60a5fa">${s.pendentes||0}</div><div class="stat-lbl">Pendentes</div></div>
+    <div class="stat"><div class="stat-val">${pct}%</div><div class="stat-lbl">Aprovação</div></div>
+    <div class="stat"><div class="stat-val" style="font-size:20px">${(s.totalTokens||0).toLocaleString()}</div><div class="stat-lbl">Tokens Gastos</div></div>
+    <div class="stat"><div class="stat-val">${s.avgTentativas ? s.avgTentativas.toFixed(1) : '—'}</div><div class="stat-lbl">Tentativas Médias</div></div>
+  `
+  const tipos = s.porTipo || {}
+  const entries = Object.entries(tipos)
+  if (!entries.length) {
+    document.getElementById('stat-tipos').innerHTML = '<div class="text-muted">Nenhuma geração ainda.</div>'
+    return
+  }
+  document.getElementById('stat-tipos').innerHTML = entries.map(([tipo, d]) => {
+    const p = d.total ? Math.round(d.aprovados/d.total*100) : 0
+    return `<div class="card"><div class="card-body">
+      <div class="card-title">${tipo}</div>
+      <div class="card-meta" style="margin-top:8px">
+        <div class="card-stats">${d.total} gerado(s) · ${d.aprovados} ✓ · ${d.rejeitados} ✗</div>
+        <span class="badge badge-${p>=60?'aprovado':p>=30?'pendente':'rejeitado'}">${p}%</span>
+      </div>
+      <div class="progress"><div class="progress-bar" style="width:${p}%"></div></div>
+    </div></div>`
+  }).join('')
+}
+</script>
+</body>
+</html>

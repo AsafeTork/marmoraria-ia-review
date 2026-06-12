@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: marmoraria-ia-review
+    runtime: node
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: SUPABASE_URL
+        value: https://hdzybdsgzdztnmncedli.supabase.co
+      - key: SUPABASE_KEY
+        sync: false
+      - key: DEEPSEEK_KEY
+        sync: false
+      - key: NODE_ENV
+        value: production
