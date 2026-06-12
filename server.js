@@ -22,120 +22,43 @@ function mk(geo){return new THREE.Mesh(geo,null);}
 `
 
 // ─── Prompts padrão ──────────────────────────────────────────────────────────
+const PROMPT_BASE = `Gera APENAS o corpo de uma função JS (sem function wrapper, sem markdown). Termina com: return group
+
+AMBIENTE Three.js r160 — sem WebGL, execução Node.js pura.
+Coordenadas: X=largura, Y=altura(cima), Z=profundidade. Metros. Centrado na origem.
+
+HELPERS disponíveis no escopo (não redefina, não importe):
+  rr(w,h,r)          → THREE.Shape retangular arredondado (para ext ou ExtrudeGeometry)
+  rrh(w,h,r)         → THREE.Path retangular (para s.holes = [rrh(...)])
+  oval(rx,ry)        → THREE.Shape oval
+  ovalh(rx,ry)       → THREE.Path oval (para furos)
+  ext(shape,depth,bev,seg) → THREE.Mesh HORIZONTAL (deitado no plano XZ, espessura sobe em +Y).
+                             bev deve ser < depth sempre. bev=0 desativa bevel.
+  rx90(mesh)         → seta mesh.rotation.x = -PI/2 e retorna mesh
+  mk(geo)            → new THREE.Mesh(geo, null)
+  group              → THREE.Group já no escopo — add as peças aqui
+
+REGRAS TÉCNICAS:
+  • ext() JÁ produz peça HORIZONTAL. NÃO chame rx90(ext(...)).
+  • Para peça VERTICAL: mk(new THREE.ExtrudeGeometry(shape, opts)) — aí pode usar rx90() se precisar.
+  • PROIBIDO: MeshStandardMaterial, MeshPhongMaterial, MeshLambertMaterial, CircleGeometry, .clone(), redeclarar group.
+  • group.add() em cada mesh criado.
+
+Primeira linha: // partes: [descrição das peças criadas]`
+
 const DEFAULT_PROMPTS = {
-  acabamentos: `Gera APENAS o corpo de uma função JS (sem function wrapper, sem markdown). Recebe THREE. Termina com: return group
+  acabamentos: PROMPT_BASE + `
 
-PROIBIDO: new THREE.MeshStandardMaterial, MeshPhongMaterial, MeshLambertMaterial, CircleGeometry, .clone()
-PROIBIDO: const group = new THREE.Group() — group JÁ está no escopo.
-ext(...) JÁ retorna Mesh — não envolva com mk(). Use mk() apenas com LatheGeometry ou new THREE.ExtrudeGeometry manual.
-Helpers no escopo: rr,rrh,oval,ovalh,ext,rx90,mk
+TAREFA: modelar uma peça de mármore/granito com o ACABAMENTO DE BORDA especificado.
+O acabamento é o perfil da borda visto de lado (seção transversal).
+Use seu conhecimento de geometria para criar o perfil mais fiel possível.
+Pense nas curvas, ângulos e proporções reais de cada acabamento antes de escrever o código.`,
 
-ext() JÁ rotaciona a peça flat (horizontal). NÃO use rx90() com ext() — ficaria vertical.
-CRÍTICO: bevelSize e bevelThickness NUNCA >= depth. Para depth=0.03: bev ≤ 0.013.
+  pecas: PROMPT_BASE + `
 
-══ COMO APLICAR ACABAMENTOS ══
-Acabamento é o perfil da BORDA da peça (vista de lado = seção transversal).
-PADRÃO: const m=ext(s, H, bev, seg); m.position.y=0; group.add(m)
-
-BOLEADO — semicírculo completo na borda, r = H/2:
-  const m=ext(s, H, H*0.45, 12); m.position.y=0; group.add(m)
-  // bev=H*0.45 cria arredondamento quase semicircular. Para H=0.03 → bev=0.0135
-
-CHANFRO 45° — corte reto diagonal no canto superior-frontal:
-  ext(s, H, H*0.35, 1)
-  // bevelSegments=1 garante corte RETO, não arredondado. Para H=0.03 → bev=0.0105
-
-MEIA CANA — canal côncavo (borda escavada para dentro):
-  // Seção transversal Shape no plano XY. X=largura W, Y=espessura H
-  const sc=new THREE.Shape()
-  sc.moveTo(-W/2, 0)        // canto-traseiro-baixo
-  sc.lineTo(W/2, 0)         // canto-frontal-baixo
-  sc.quadraticCurveTo(W/2 + H*0.6, H*0.5, W/2, H)  // côncavo: sai pra fora e volta
-  sc.lineTo(-W/2, H)        // canto-traseiro-cima
-  const m = rx90(mk(new THREE.ExtrudeGeometry(sc, {depth:L, bevelEnabled:false})))
-  m.position.set(0,0,0); group.add(m)
-
-OGEE — curva S (convexo em baixo + côncavo em cima):
-  const sc=new THREE.Shape()
-  sc.moveTo(-W/2, 0); sc.lineTo(W/2, 0)
-  sc.quadraticCurveTo(W/2+H*0.45, H*0.25, W/2, H*0.5)  // baixo: projeta pra fora
-  sc.quadraticCurveTo(W/2+H*0.6,  H*0.75, W/2, H)        // cima: recua (côncavo)
-  sc.lineTo(-W/2, H)
-
-DUPLO BOLEADO — dois arredondamentos escalonados:
-  ext(s, H, H*0.42, 2)
-  // bevelSegments=2 cria dois ressaltos. Para resultado mais pronunciado use Shape:
-  // sc com dois quadraticCurveTo convexos na borda frontal
-
-PEITO DE POMBO — bojo convexo proeminente (como peito estufado):
-  const sc=new THREE.Shape()
-  sc.moveTo(-W/2, 0); sc.lineTo(W/2, 0)
-  sc.quadraticCurveTo(W/2+H*0.75, H*0.3, W/2+H*0.5, H*0.5)  // projeta forte
-  sc.quadraticCurveTo(W/2+H*0.75, H*0.7, W/2, H)               // volta à face
-  sc.lineTo(-W/2, H)
-
-Metros. Centrado na origem. Primeira linha: // partes: [...]`,
-
-  pecas: `Gera APENAS o corpo de uma função JS (sem function wrapper, sem markdown). Recebe THREE. Termina com: return group
-
-PROIBIDO: new THREE.MeshStandardMaterial, MeshPhongMaterial, MeshLambertMaterial, CircleGeometry, .clone()
-PROIBIDO: const group = new THREE.Group() — group JÁ está no escopo, não redeclare.
-PROIBIDO: rx90(ext(...)) — NUNCA combine rx90 com ext().
-
-Helpers NO escopo (NÃO redefina):
-rr(w,h,r) Shape retangular | rrh(w,h,r) Path hole retangular
-oval(rx,ry) Shape oval | ovalh(rx,ry) Path hole oval
-ext(shape,depth,bev,seg) → Mesh HORIZONTAL (deitado, plano XZ). SEM rx90.
-rx90(m) → rotaciona X=-90°. Use SOMENTE com mk(new THREE.ExtrudeGeometry(...)) para peças VERTICAIS.
-mk(geo) → Mesh(geo,null)
-
-══ PADRÕES OBRIGATÓRIOS ══
-
-PLACA HORIZONTAL (bancada/tampo/soleira/peitoril):
-  const pl=ext(rr(L,W,0.01),H,0.005,8); pl.position.y=0; group.add(pl)
-  // H=espessura: 0.02–0.04m. ext() já deixa deitado — NÃO use rx90.
-
-BANCADA EM L (duas placas horizontais que formam L):
-  const p1=ext(rr(L1,W,0.01),H,0.005,8); p1.position.set(0,0,0); group.add(p1)
-  const p2=ext(rr(L2,W2,0.01),H,0.005,8); p2.position.set(L1/2-L2/2, 0, -W/2-W2/2); group.add(p2)
-  // p2 encaixa perpendicular no canto de p1. Ajuste position.x e position.z para não sobrepor.
-
-PLACA HORIZONTAL COM FURO (bancada + cuba embutida):
-  const s=rr(L,W,0.01); s.holes=[ovalh(rx,ry)]
-  const pl=ext(s,H,0.005,8); pl.position.y=0; group.add(pl)
-
-PEÇA VERTICAL (saia frontal / frontão / salpicador):
-  // Usar mk(new THREE.ExtrudeGeometry(...)) + rx90() para peça VERTICAL
-  const sfGeo=new THREE.ExtrudeGeometry(rr(L,Hv,0.01),{depth:T,bevelEnabled:true,bevelSize:0.003,bevelThickness:0.003,bevelSegments:4})
-  const sf=rx90(mk(sfGeo))
-  sf.position.set(0, Hv/2, -W/2+T/2)  // centralizado, na frente da bancada
-  group.add(sf)
-  // Hv=altura da saia 0.06–0.10m | T=espessura 0.02–0.03m
-
-CUBA DE SOBREPOR (lavatório):
-  const s=rr(W,L,0.02); s.holes=[rrh(Wi,Li,0.02)]
-  const fr=ext(s,H,0.01,8); fr.position.y=0; group.add(fr)
-  const fd=ext(rr(Wi,Li,0.02),0.015,0); fd.position.y=H+0.005; group.add(fd)
-
-PEDESTAL/COLUNA (LatheGeometry):
-  const pts=[]
-  pts.push(new THREE.Vector2(0.13,0))
-  pts.push(new THREE.Vector2(0.11,0.03))
-  pts.push(new THREE.Vector2(0.07,0.12))
-  pts.push(new THREE.Vector2(0.065,0.5))
-  pts.push(new THREE.Vector2(0.07,0.68))
-  pts.push(new THREE.Vector2(0.10,0.72))
-  pts.push(new THREE.Vector2(0.12,0.75))
-  group.add(mk(new THREE.LatheGeometry(pts,48)))
-  // diferença de raio entre pontos consecutivos ≤ 0.03m
-
-══ PROPORÇÕES REAIS ══
-Bancada/tampo/soleira/peitoril: espessura H=0.02–0.04m
-Saia frontal: Hv=0.06–0.10m altura, T=mesma espessura da bancada
-Frontão/salpicador: Hv=0.10–0.15m altura, T=0.02m
-Cuba embutida: 0.45×0.35m, profundidade 0.15m, paredes 0.04m
-
-Metros. Centrado na origem. Primeira linha: // partes: [...]`
+TAREFA: modelar em 3D a peça de mármore/granito descrita, com todas as suas partes e detalhes.
+Use seu conhecimento de geometria e arquitetura para criar o modelo mais fiel possível.
+Pense nas dimensões, proporções e posicionamento de cada parte antes de escrever o código.`
 }
 
 // ─── Geração ─────────────────────────────────────────────────────────────────
@@ -160,11 +83,13 @@ async function askDS(msgs) {
   const r = await fetch('https://api.deepseek.com/v1/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${DS_KEY}` },
-    body: JSON.stringify({ model: 'deepseek-chat', max_tokens: 20000, temperature: 0.2, messages: msgs })
+    body: JSON.stringify({ model: 'deepseek-reasoner', max_tokens: 20000, messages: msgs })
   })
   const d = await r.json()
   if (!d.choices) throw new Error(d.error?.message ?? 'DeepSeek sem resposta')
-  return { text: d.choices[0].message.content ?? '', tokens: d.usage?.total_tokens ?? 0 }
+  const msg = d.choices[0].message
+  const text = msg.content ?? msg.reasoning_content ?? ''
+  return { text, tokens: d.usage?.total_tokens ?? 0 }
 }
 
 async function getActivePrompt(tipo) {
