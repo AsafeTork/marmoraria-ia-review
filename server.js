@@ -19,7 +19,7 @@ function ovalh(rx,ry,segs=48){const p=new THREE.Path();for(let i=0;i<=segs;i++){
 function ext(shape,depth,bev=0.005,seg=6){const geo=new THREE.ExtrudeGeometry(shape,{depth,bevelEnabled:!!bev,bevelSize:bev,bevelThickness:bev,bevelSegments:seg});const m=new THREE.Mesh(geo,null);m.rotation.x=-Math.PI/2;return m;}
 function rx90(m){m.rotation.x=-Math.PI/2;return m;}
 function mk(geo){return new THREE.Mesh(geo,null);}
-function mc(r,h){const s=new THREE.Shape();s.moveTo(0,0);s.lineTo(r,0);s.lineTo(r,h);s.quadraticCurveTo(r/2,h/2,0,h);s.lineTo(0,0);return s;}
+function mc(r,h){const s=new THREE.Shape();s.moveTo(0,0);s.lineTo(r,0);s.lineTo(r,h);s.lineTo(0,h);s.quadraticCurveTo(r*0.7,h/2,0,0);return s;}
 `
 
 // ─── Prompts padrão ──────────────────────────────────────────────────────────
@@ -42,11 +42,15 @@ HELPERS disponíveis no escopo (não redefina, não importe):
       bev deve ser < depth e > 0 para bordas suaves. bev=0 desativa bevel.
   rx90(mesh)  → seta mesh.rotation.x = -PI/2 e retorna mesh
   mk(geo)     → new THREE.Mesh(geo, null)
-  mc(r,h)     → THREE.Shape do perfil CÔNCAVO (meia cana): profundidade r, altura h.
-                 Usar com ExtrudeGeometry para criar borda côncava ao longo de um eixo.
-                 Exemplo borda frontal de peça L×D×H:
-                   const eg=new THREE.ExtrudeGeometry(mc(H,H),{depth:L,bevelEnabled:false})
-                   const em=mk(eg); em.rotation.y=Math.PI/2; em.position.set(-L/2,0,D/2)
+  mc(r,h)     → THREE.Shape do perfil CÔNCAVO meia cana (concavidade na face vertical).
+                 r=profundidade do recuo, h=altura. Usar com ExtrudeGeometry.
+                 Borda frontal (Z=+D/2, extrude ao longo de X, depth=L):
+                   mk(new THREE.ExtrudeGeometry(mc(H,H),{depth:L,bevelEnabled:false}))
+                   → rotation.y=Math.PI/2; position.set(-L/2, 0, D/2)
+                 Borda esquerda (X=-L/2, extrude ao longo de Z, depth=D):
+                   → rotation.y=0; position.set(-L/2, 0, -D/2)
+                 Borda direita (X=+L/2, extrude ao longo de Z, depth=D):
+                   → rotation.y=Math.PI; position.set(L/2, 0, D/2)
   group       → THREE.Group já no escopo — add as peças aqui
 
 REGRAS TÉCNICAS:
@@ -125,9 +129,9 @@ ESTRUTURA OBRIGATÓRIA para uma bancada com meia cana nas bordas expostas:
      • Borda traseira (Z=-D/2, ao longo de X):
          em.rotation.y=-Math.PI/2; em.position.set(L/2, 0, -D/2)
      • Borda esquerda (X=-L/2, ao longo de Z):
-         em.rotation.y=Math.PI; em.position.set(-L/2, 0, -D/2)
+         em.rotation.y=0; em.position.set(-L/2, 0, -D/2)
      • Borda direita (X=+L/2, ao longo de Z):
-         em.rotation.y=0; em.position.set(L/2, 0, D/2)
+         em.rotation.y=Math.PI; em.position.set(L/2, 0, D/2)
 
 PROIBIDO: rx90(), MeshStandardMaterial.`,
     ogee:          `APLICAR ACABAMENTO OGEE (perfil em S).
