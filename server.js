@@ -32,15 +32,20 @@ HELPERS disponíveis no escopo (não redefina, não importe):
   rrh(w,h,r)         → THREE.Path retangular (para s.holes = [rrh(...)])
   oval(rx,ry)        → THREE.Shape oval
   ovalh(rx,ry)       → THREE.Path oval (para furos)
-  ext(shape,depth,bev,seg) → THREE.Mesh HORIZONTAL (deitado no plano XZ, espessura sobe em +Y).
-                             bev deve ser < depth sempre. bev=0 desativa bevel.
-  rx90(mesh)         → seta mesh.rotation.x = -PI/2 e retorna mesh
-  mk(geo)            → new THREE.Mesh(geo, null)
-  group              → THREE.Group já no escopo — add as peças aqui
+  ext(shape,depth,bev,seg) → THREE.Mesh HORIZONTAL deitado no plano XZ.
+      MAPEAMENTO EXATO: ext(rr(W,D,r), H, bev, seg)
+        → X de -W/2 até +W/2  (largura)
+        → Z de -D/2 até +D/2  (profundidade)
+        → Y de position.y até position.y+H  (espessura para cima)
+      position.y = 0 para peça no chão. NUNCA use position.y negativo.
+      bev deve ser < depth e > 0 para bordas suaves. bev=0 desativa bevel.
+  rx90(mesh)  → seta mesh.rotation.x = -PI/2 e retorna mesh
+  mk(geo)     → new THREE.Mesh(geo, null)
+  group       → THREE.Group já no escopo — add as peças aqui
 
 REGRAS TÉCNICAS:
   • ext() JÁ produz peça HORIZONTAL. NÃO chame rx90(ext(...)).
-  • Para peça VERTICAL: mk(new THREE.ExtrudeGeometry(shape, opts)) — aí pode usar rx90() se precisar.
+  • Para peça VERTICAL (saia, frontão): mk(new THREE.ExtrudeGeometry(shape, opts)) — aí pode usar rx90().
   • PROIBIDO: MeshStandardMaterial, MeshPhongMaterial, MeshLambertMaterial, CircleGeometry, .clone(), redeclarar group.
   • group.add() em cada mesh criado.
 
