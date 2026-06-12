@@ -30,14 +30,16 @@ PROIBIDO: const group = new THREE.Group() — group JÁ está no escopo.
 ext(...) JÁ retorna Mesh — não envolva com mk(). Use mk() apenas com LatheGeometry ou new THREE.ExtrudeGeometry manual.
 Helpers no escopo: rr,rrh,oval,ovalh,ext,rx90,mk
 
-REGRA rx90: mesh ocupa Y de position.y até position.y+depth.
+OBRIGATÓRIO: toda peça plana (bancada, tampo, soleira) DEVE usar rx90(). Sem rx90, a peça fica em pé como parede — ERRADO.
+REGRA rx90: após rx90, mesh ocupa Y de position.y até position.y+depth.
 CRÍTICO: bevelSize e bevelThickness NUNCA >= depth. Para depth=0.03: bev ≤ 0.013.
 
 ══ COMO APLICAR ACABAMENTOS ══
 Acabamento é o perfil da BORDA da peça (vista de lado = seção transversal).
+PADRÃO OBRIGATÓRIO para peça plana: const m = rx90(ext(s, H, bev, seg)); m.position.y=0; group.add(m)
 
 BOLEADO — semicírculo completo na borda, r = H/2:
-  ext(s, H, H*0.45, 12)
+  const m=rx90(ext(s, H, H*0.45, 12)); m.position.y=0; group.add(m)
   // bev=H*0.45 cria arredondamento quase semicircular. Para H=0.03 → bev=0.0135
 
 CHANFRO 45° — corte reto diagonal no canto superior-frontal:
