@@ -148,7 +148,7 @@ async function askDS(msgs) {
   const r = await fetch('https://api.deepseek.com/v1/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${DS_KEY}` },
-    body: JSON.stringify({ model: 'deepseek-chat', max_tokens: 1400, temperature: 0.0, messages: msgs })
+    body: JSON.stringify({ model: 'deepseek-chat', max_tokens: 1400, temperature: 0.2, messages: msgs })
   })
   const d = await r.json()
   if (!d.choices) throw new Error(d.error?.message ?? 'DeepSeek sem resposta')
@@ -163,12 +163,12 @@ async function getActivePrompt(tipo) {
 
 function getAcabInstrucao(tipo) {
   const map = {
-    boleado:       'APLICAR ACABAMENTO BOLEADO: ext(s, H, H*0.45, 12)',
-    chanfro45:     'APLICAR ACABAMENTO CHANFRO 45°: ext(s, H, H*0.35, 1) — bevelSegments=1 obrigatório',
-    meia_cana:     'APLICAR ACABAMENTO MEIA CANA: seção transversal côncava (quadraticCurveTo saindo para fora e voltando)',
-    ogee:          'APLICAR ACABAMENTO OGEE: seção transversal em S (convexo embaixo + côncavo em cima)',
-    duplo_boleado: 'APLICAR ACABAMENTO DUPLO BOLEADO: ext(s, H, H*0.42, 2)',
-    peito_pombo:   'APLICAR ACABAMENTO PEITO DE POMBO: seção transversal com bojo convexo proeminente',
+    boleado:       'APLICAR ACABAMENTO BOLEADO.\nUSE EXATAMENTE: const m=rx90(ext(s,H,H*0.45,12)); m.position.y=0; group.add(m)\nProibido MeshStandardMaterial.',
+    chanfro45:     'APLICAR ACABAMENTO CHANFRO 45°.\nUSE EXATAMENTE: const m=rx90(ext(s,H,H*0.35,1)); m.position.y=0; group.add(m)\nbevelSegments=1 obrigatório. Proibido MeshStandardMaterial.',
+    meia_cana:     'APLICAR ACABAMENTO MEIA CANA: seção transversal côncava com quadraticCurveTo. Use rx90() na peça final. Proibido MeshStandardMaterial.',
+    ogee:          'APLICAR ACABAMENTO OGEE: seção transversal em S (convexo embaixo + côncavo em cima). Use rx90() na peça final. Proibido MeshStandardMaterial.',
+    duplo_boleado: 'APLICAR ACABAMENTO DUPLO BOLEADO.\nUSE EXATAMENTE: const m=rx90(ext(s,H,H*0.42,2)); m.position.y=0; group.add(m)\nProibido MeshStandardMaterial.',
+    peito_pombo:   'APLICAR ACABAMENTO PEITO DE POMBO: seção transversal com bojo convexo proeminente. Use rx90() na peça final. Proibido MeshStandardMaterial.',
   }
   return map[tipo] ?? ''
 }
