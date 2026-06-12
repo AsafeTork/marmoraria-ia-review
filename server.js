@@ -229,7 +229,7 @@ S.add(new THREE.AmbientLight(0xffffff,.55))
 const sun=new THREE.DirectionalLight(0xfff5e0,1.4); sun.position.set(4,6,3); sun.castShadow=true
 sun.shadow.mapSize.set(2048,2048); sun.shadow.camera.top=4; sun.shadow.camera.bottom=-4
 sun.shadow.camera.left=-4; sun.shadow.camera.right=4; sun.shadow.bias=-.0005; S.add(sun)
-S.add(Object.assign(new THREE.DirectionalLight(0x8090ff,.3),{position:{x:-3,y:3,z:-2}}))
+const fl2=new THREE.DirectionalLight(0x8090ff,.3);fl2.position.set(-3,3,-2);S.add(fl2)
 const mM=new THREE.MeshStandardMaterial({color:0xf0ece3,roughness:.06,metalness:.05,envMapIntensity:.5})
 const mD=new THREE.MeshStandardMaterial({color:0xc5bfb4,roughness:.5,metalness:.02})
 ${fn}
