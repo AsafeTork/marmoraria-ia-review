@@ -177,6 +177,7 @@ async function gen(descricao, tipo) {
   const userMsg = instrucao ? `${instrucao}\n\nDescrição: ${descricao}` : `Crie: ${descricao}`
   const hist = [{ role: 'system', content: sys }, { role: 'user', content: userMsg }]
   let best = '', bestV = 0, total = 0, tentativas = 0
+  const erros = []
 
   for (let i = 1; i <= 3; i++) {
     tentativas = i
@@ -184,6 +185,7 @@ async function gen(descricao, tipo) {
     try {
       ;({ text, tokens } = await askDS(hist))
     } catch(e) {
+      erros.push(`t${i} DS: ${e.message}`)
       break
     }
     total += tokens
@@ -197,13 +199,14 @@ async function gen(descricao, tipo) {
         hist.push({ role: 'user', content: `OK (${v} verts). Melhore o perfil do acabamento, mais bevelSegments.` })
       }
     } catch(e) {
+      erros.push(`t${i} runCode: ${e.message}`)
       if (i < 3) {
         hist.push({ role: 'assistant', content: text })
         hist.push({ role: 'user', content: `Erro: "${e.message}". Corrija e mantenha o acabamento.` })
       }
     }
   }
-  return { code: best, verts: bestV, tokens: total, tentativas }
+  return { code: best, verts: bestV, tokens: total, tentativas, erros }
 }
 
 function buildHtml(label, code, verts) {
@@ -247,8 +250,8 @@ app.post('/api/gerar', async (req, res) => {
   const { descricao, tipo = 'peca', label } = req.body
   if (!descricao?.trim()) return res.status(400).json({ error: 'descricao obrigatória' })
   try {
-    const { code, verts, tokens, tentativas } = await gen(descricao, tipo)
-    if (!code) return res.status(500).json({ error: 'IA não gerou código válido após 3 tentativas' })
+    const { code, verts, tokens, tentativas, erros } = await gen(descricao, tipo)
+    if (!code) return res.status(500).json({ error: 'IA não gerou código válido após 3 tentativas', erros })
     const html = buildHtml(label || descricao.slice(0, 60), code, verts)
     const { data, error } = await sb.from('geracoes')
       .insert({ descricao, tipo, label: label || descricao.slice(0, 60), html_code: html, three_code: code, verts, tokens, tentativas })
@@ -369,6 +372,28 @@ app.get('/api/system', (_req, res) => {
     maxTentativas: 3,
     validacao: 'Mínimo 80 vértices, group não vazio, retorna THREE.Group'
   })
+})
+
+// ─── Diagnóstico ─────────────────────────────────────────────────────────────
+app.get('/api/ping', (_req, res) => {
+  try {
+    const code = `
+const s = rr(1.5, 0.6, 0.01)
+const pl = rx90(mk(ext(s, 0.03, 0.013, 12)))
+pl.position.y = 0
+group.add(pl)
+return group`
+    const { v } = runCode(code)
+    res.json({ ok: true, verts: v, three: THREE.REVISION })
+  } catch(e) {
+    res.status(500).json({ ok: false, error: e.message, three: THREE.REVISION })
+  }
+})
+
+app.post('/api/debug-gen', async (req, res) => {
+  const { descricao = 'Bancada 1.5m boleada', tipo = 'boleado' } = req.body
+  const result = await gen(descricao, tipo)
+  res.json({ ...result, code: result.code ? result.code.slice(0, 200) + '...' : null })
 })
 
 const PORT = process.env.PORT || 3000
