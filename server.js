@@ -21,6 +21,7 @@ function ovalh(rx,ry,segs=48){const p=new THREE.Path();for(let i=0;i<=segs;i++){
 function ext(shape,depth,bev=0.005,seg=6){const geo=new THREE.ExtrudeGeometry(shape,{depth,bevelEnabled:!!bev,bevelSize:bev,bevelThickness:bev,bevelSegments:seg});const m=new THREE.Mesh(geo,null);m.rotation.x=-Math.PI/2;return m;}
 function rx90(m){m.rotation.x=-Math.PI/2;return m;}
 function mk(geo){return new THREE.Mesh(geo,null);}
+function mc(r,h){const s=new THREE.Shape();s.moveTo(0,0);s.lineTo(r,0);s.lineTo(r,h);s.quadraticCurveTo(r/2,h/2,0,h);s.lineTo(0,0);return s;}
 `
 
 // ─── Prompts padrão ──────────────────────────────────────────────────────────
@@ -43,6 +44,11 @@ HELPERS disponíveis no escopo (não redefina, não importe):
       bev deve ser < depth e > 0 para bordas suaves. bev=0 desativa bevel.
   rx90(mesh)  → seta mesh.rotation.x = -PI/2 e retorna mesh
   mk(geo)     → new THREE.Mesh(geo, null)
+  mc(r,h)     → THREE.Shape do perfil CÔNCAVO (meia cana): profundidade r, altura h.
+                 Usar com ExtrudeGeometry para criar borda côncava ao longo de um eixo.
+                 Exemplo borda frontal de peça L×D×H:
+                   const eg=new THREE.ExtrudeGeometry(mc(H,H),{depth:L,bevelEnabled:false})
+                   const em=mk(eg); em.rotation.y=Math.PI/2; em.position.set(-L/2,0,D/2)
   group       → THREE.Group já no escopo — add as peças aqui
 
 REGRAS TÉCNICAS:
@@ -109,10 +115,43 @@ function getAcabInstrucao(tipo) {
   const map = {
     boleado:       'APLICAR ACABAMENTO BOLEADO.\nUSE EXATAMENTE: const m=ext(s,H,H*0.45,12); m.position.y=0; group.add(m)\nProibido: rx90(), MeshStandardMaterial.',
     chanfro45:     'APLICAR ACABAMENTO CHANFRO 45°.\nUSE EXATAMENTE: const m=ext(s,H,H*0.35,1); m.position.y=0; group.add(m)\nbevelSegments=1 obrigatório. Proibido: rx90(), MeshStandardMaterial.',
-    meia_cana:     'APLICAR ACABAMENTO MEIA CANA: seção transversal côncava com quadraticCurveTo. NÃO use rx90(). Proibido MeshStandardMaterial.',
-    ogee:          'APLICAR ACABAMENTO OGEE: seção transversal em S (convexo embaixo + côncavo em cima). NÃO use rx90(). Proibido MeshStandardMaterial.',
+    meia_cana:     `APLICAR ACABAMENTO MEIA CANA.
+A meia cana é uma concavidade semicircular na borda da peça (vista de lado: a borda recua para dentro em curva côncava e volta).
+Use o helper mc(r,h) para criar o perfil côncavo.
+
+ESTRUTURA OBRIGATÓRIA para uma bancada com meia cana nas bordas expostas:
+  1. Bancada base: ext(rr(L,D,0.005), H, 0, 0) — SEM bevel (bev=0)
+  2. Para cada borda exposta: mk(new THREE.ExtrudeGeometry(mc(H,H), {depth:L, bevelEnabled:false}))
+     • Borda frontal (Z=+D/2, ao longo de X):
+         em.rotation.y=Math.PI/2; em.position.set(-L/2, 0, D/2)
+     • Borda traseira (Z=-D/2, ao longo de X):
+         em.rotation.y=-Math.PI/2; em.position.set(L/2, 0, -D/2)
+     • Borda esquerda (X=-L/2, ao longo de Z):
+         em.rotation.y=Math.PI; em.position.set(-L/2, 0, -D/2)
+     • Borda direita (X=+L/2, ao longo de Z):
+         em.rotation.y=0; em.position.set(L/2, 0, D/2)
+
+PROIBIDO: rx90(), MeshStandardMaterial.`,
+    ogee:          `APLICAR ACABAMENTO OGEE (perfil em S).
+O ogee é um perfil em S na borda: côncavo na metade inferior, convexo na metade superior.
+Crie com Shape 2D + ExtrudeGeometry ao longo do comprimento.
+Perfil (Shape no plano XY, X=profundidade da borda, Y=altura):
+  s.moveTo(0,0); s.lineTo(R,0); s.lineTo(R,H/2);
+  s.quadraticCurveTo(R/2,H/4, 0,H/2);   // côncavo inferior
+  s.quadraticCurveTo(-R/3,3*H/4, 0,H);  // convexo superior
+  s.lineTo(0,0);
+Onde R=H (profundidade = espessura). Extruda com depth=L, rotation.y=Math.PI/2, position.set(-L/2,0,D/2).
+Bancada base: ext(rr(L,D,0.005),H,0,0). PROIBIDO: rx90(), MeshStandardMaterial.`,
     duplo_boleado: 'APLICAR ACABAMENTO DUPLO BOLEADO.\nUSE EXATAMENTE: const m=ext(s,H,H*0.42,2); m.position.y=0; group.add(m)\nProibido: rx90(), MeshStandardMaterial.',
-    peito_pombo:   'APLICAR ACABAMENTO PEITO DE POMBO: seção transversal com bojo convexo proeminente. NÃO use rx90(). Proibido MeshStandardMaterial.',
+    peito_pombo:   `APLICAR ACABAMENTO PEITO DE POMBO.
+Peito de pombo: bojo convexo proeminente na parte central da borda (como um peito de pomba vista de lado).
+Crie com Shape 2D + ExtrudeGeometry ao longo do comprimento.
+Perfil (Shape no plano XY, X=profundidade, Y=altura):
+  s.moveTo(0,0); s.lineTo(R*0.3,0); s.lineTo(R*0.3,H*0.1);
+  s.quadraticCurveTo(R*1.2,H/2, R*0.3,H*0.9);  // bojo convexo proeminente
+  s.lineTo(R*0.3,H); s.lineTo(0,H); s.lineTo(0,0);
+Onde R=H. Extruda com depth=L, rotation.y=Math.PI/2, position.set(-L/2,0,D/2).
+Bancada base: ext(rr(L,D,0.005),H,0,0). PROIBIDO: rx90(), MeshStandardMaterial.`,
   }
   return map[tipo] ?? ''
 }
