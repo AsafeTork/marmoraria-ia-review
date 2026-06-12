@@ -299,7 +299,9 @@ async function gerar() {
   document.getElementById('v-frame').style.display = 'none'
   document.getElementById('vote-section').style.display = 'none'
   document.getElementById('g-info').textContent = ''
-  document.getElementById('g-status').textContent = 'Chamando DeepSeek...'
+
+  const setStatus = t => { document.getElementById('g-status').textContent = t }
+  setStatus('Enviando para DeepSeek R1...')
 
   try {
     const r = await fetch('/api/gerar', {
@@ -310,27 +312,57 @@ async function gerar() {
     const d = await r.json()
     if (!r.ok || d.error) throw new Error(d.error || 'Erro na geração')
 
-    currentId = d.id
-    const frame = document.getElementById('v-frame')
-    frame.src = '/api/geracao/' + d.id + '/html'
-    frame.style.display = 'block'
-    document.getElementById('v-loading').style.display = 'none'
-
-    document.getElementById('vote-section').style.display = 'block'
-    document.getElementById('v-label').textContent = desc.slice(0, 80)
-    document.getElementById('v-stats').textContent =
-      `${(d.verts||0).toLocaleString()} vértices  ·  ${(d.tokens||0).toLocaleString()} tokens  ·  ${d.tentativas} tentativa(s)`
-    document.getElementById('v-badge').className = 'badge badge-pendente'
-    document.getElementById('v-badge').textContent = 'Pendente'
-    document.getElementById('v-comment').value = ''
-    document.getElementById('v-votos').innerHTML = ''
-    document.getElementById('g-info').textContent = `ID: ${d.id.slice(0,8)}...`
+    // Polling assíncrono — R1 pode demorar 60–180s
+    const jobId = d.jobId
+    let elapsed = 0
+    const t0 = Date.now()
+    const poll = setInterval(async () => {
+      elapsed = Math.floor((Date.now() - t0) / 1000)
+      setStatus(`R1 raciocina... ${elapsed}s`)
+      try {
+        const sr = await fetch('/api/gerar/status/' + jobId)
+        const s = await sr.json()
+        if (s.status === 'concluido') {
+          clearInterval(poll)
+          finalizarGeracao(s, desc)
+          btn.disabled = false
+        } else if (s.status === 'erro') {
+          clearInterval(poll)
+          throw new Error(s.error || 'Erro na geração')
+        }
+      } catch(e) {
+        if (e.message !== 'Failed to fetch') {
+          clearInterval(poll)
+          toast('Erro: ' + e.message, true)
+          document.getElementById('v-loading').style.display = 'none'
+          document.getElementById('v-empty').style.display = 'flex'
+          btn.disabled = false
+        }
+      }
+    }, 2000)
   } catch(e) {
     toast('Erro: ' + e.message, true)
     document.getElementById('v-loading').style.display = 'none'
     document.getElementById('v-empty').style.display = 'flex'
+    btn.disabled = false
   }
-  btn.disabled = false
+}
+
+function finalizarGeracao(d, desc) {
+  currentId = d.id
+  const frame = document.getElementById('v-frame')
+  frame.src = '/api/geracao/' + d.id + '/html'
+  frame.style.display = 'block'
+  document.getElementById('v-loading').style.display = 'none'
+  document.getElementById('vote-section').style.display = 'block'
+  document.getElementById('v-label').textContent = desc.slice(0, 80)
+  document.getElementById('v-stats').textContent =
+    `${(d.verts||0).toLocaleString()} vértices  ·  ${(d.tokens||0).toLocaleString()} tokens  ·  ${d.tentativas} tentativa(s)`
+  document.getElementById('v-badge').className = 'badge badge-pendente'
+  document.getElementById('v-badge').textContent = 'Pendente'
+  document.getElementById('v-comment').value = ''
+  document.getElementById('v-votos').innerHTML = ''
+  document.getElementById('g-info').textContent = `ID: ${d.id.slice(0,8)}...`
 }
 
 async function votar(voto) {
