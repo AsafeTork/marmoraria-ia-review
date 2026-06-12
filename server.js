@@ -16,7 +16,7 @@ function rr(w,h,r){const s=new THREE.Shape();s.moveTo(-w/2+r,-h/2);s.lineTo(w/2-
 function rrh(w,h,r){const p=new THREE.Path();p.moveTo(-w/2+r,-h/2);p.lineTo(w/2-r,-h/2);p.quadraticCurveTo(w/2,-h/2,w/2,-h/2+r);p.lineTo(w/2,h/2-r);p.quadraticCurveTo(w/2,h/2,w/2-r,h/2);p.lineTo(-w/2+r,h/2);p.quadraticCurveTo(-w/2,h/2,-w/2,h/2-r);p.lineTo(-w/2,-h/2+r);p.quadraticCurveTo(-w/2,-h/2,-w/2+r,-h/2);return p;}
 function oval(rx,ry,segs=48){const s=new THREE.Shape();const pts=[];for(let i=0;i<=segs;i++){const a=i/segs*Math.PI*2;pts.push(new THREE.Vector2(Math.cos(a)*rx,Math.sin(a)*ry));}s.setFromPoints(pts);return s;}
 function ovalh(rx,ry,segs=48){const p=new THREE.Path();for(let i=0;i<=segs;i++){const a=i/segs*Math.PI*2;i===0?p.moveTo(Math.cos(a)*rx,Math.sin(a)*ry):p.lineTo(Math.cos(a)*rx,Math.sin(a)*ry);}return p;}
-function ext(shape,depth,bev=0.005,seg=6){const geo=new THREE.ExtrudeGeometry(shape,{depth,bevelEnabled:!!bev,bevelSize:bev,bevelThickness:bev,bevelSegments:seg});return new THREE.Mesh(geo,null);}
+function ext(shape,depth,bev=0.005,seg=6){const geo=new THREE.ExtrudeGeometry(shape,{depth,bevelEnabled:!!bev,bevelSize:bev,bevelThickness:bev,bevelSegments:seg});const m=new THREE.Mesh(geo,null);m.rotation.x=-Math.PI/2;return m;}
 function rx90(m){m.rotation.x=-Math.PI/2;return m;}
 function mk(geo){return new THREE.Mesh(geo,null);}
 `
@@ -30,16 +30,15 @@ PROIBIDO: const group = new THREE.Group() — group JÁ está no escopo.
 ext(...) JÁ retorna Mesh — não envolva com mk(). Use mk() apenas com LatheGeometry ou new THREE.ExtrudeGeometry manual.
 Helpers no escopo: rr,rrh,oval,ovalh,ext,rx90,mk
 
-OBRIGATÓRIO: toda peça plana (bancada, tampo, soleira) DEVE usar rx90(). Sem rx90, a peça fica em pé como parede — ERRADO.
-REGRA rx90: após rx90, mesh ocupa Y de position.y até position.y+depth.
+ext() JÁ rotaciona a peça flat (horizontal). NÃO use rx90() com ext() — ficaria vertical.
 CRÍTICO: bevelSize e bevelThickness NUNCA >= depth. Para depth=0.03: bev ≤ 0.013.
 
 ══ COMO APLICAR ACABAMENTOS ══
 Acabamento é o perfil da BORDA da peça (vista de lado = seção transversal).
-PADRÃO OBRIGATÓRIO para peça plana: const m = rx90(ext(s, H, bev, seg)); m.position.y=0; group.add(m)
+PADRÃO: const m=ext(s, H, bev, seg); m.position.y=0; group.add(m)
 
 BOLEADO — semicírculo completo na borda, r = H/2:
-  const m=rx90(ext(s, H, H*0.45, 12)); m.position.y=0; group.add(m)
+  const m=ext(s, H, H*0.45, 12); m.position.y=0; group.add(m)
   // bev=H*0.45 cria arredondamento quase semicircular. Para H=0.03 → bev=0.0135
 
 CHANFRO 45° — corte reto diagonal no canto superior-frontal:
@@ -86,7 +85,7 @@ Use mk(geo) para criar meshes — já tem null como material.
 Helpers NO escopo (NÃO redefina):
 rr(w,h,r) Shape retangular | rrh(w,h,r) Path hole retangular
 oval(rx,ry) Shape oval | ovalh(rx,ry) Path hole oval
-ext(shape,depth,bev,seg) retorna Mesh | rx90(m) rotaciona X=-90° | mk(geo) Mesh(geo,null) — use mk() apenas com LatheGeometry ou ExtrudeGeometry manual
+ext(shape,depth,bev,seg) Mesh HORIZONTAL (já flat) | rx90(m) rotaciona X=-90° — use APENAS com mk(new ExtrudeGeometry) ou LatheGeometry | mk(geo) Mesh(geo,null)
 
 REGRA rx90: após rx90, mesh ocupa Y de position.y até position.y+depth.
 
@@ -163,12 +162,12 @@ async function getActivePrompt(tipo) {
 
 function getAcabInstrucao(tipo) {
   const map = {
-    boleado:       'APLICAR ACABAMENTO BOLEADO.\nUSE EXATAMENTE: const m=rx90(ext(s,H,H*0.45,12)); m.position.y=0; group.add(m)\nProibido MeshStandardMaterial.',
-    chanfro45:     'APLICAR ACABAMENTO CHANFRO 45°.\nUSE EXATAMENTE: const m=rx90(ext(s,H,H*0.35,1)); m.position.y=0; group.add(m)\nbevelSegments=1 obrigatório. Proibido MeshStandardMaterial.',
-    meia_cana:     'APLICAR ACABAMENTO MEIA CANA: seção transversal côncava com quadraticCurveTo. Use rx90() na peça final. Proibido MeshStandardMaterial.',
-    ogee:          'APLICAR ACABAMENTO OGEE: seção transversal em S (convexo embaixo + côncavo em cima). Use rx90() na peça final. Proibido MeshStandardMaterial.',
-    duplo_boleado: 'APLICAR ACABAMENTO DUPLO BOLEADO.\nUSE EXATAMENTE: const m=rx90(ext(s,H,H*0.42,2)); m.position.y=0; group.add(m)\nProibido MeshStandardMaterial.',
-    peito_pombo:   'APLICAR ACABAMENTO PEITO DE POMBO: seção transversal com bojo convexo proeminente. Use rx90() na peça final. Proibido MeshStandardMaterial.',
+    boleado:       'APLICAR ACABAMENTO BOLEADO.\nUSE EXATAMENTE: const m=ext(s,H,H*0.45,12); m.position.y=0; group.add(m)\nProibido: rx90(), MeshStandardMaterial.',
+    chanfro45:     'APLICAR ACABAMENTO CHANFRO 45°.\nUSE EXATAMENTE: const m=ext(s,H,H*0.35,1); m.position.y=0; group.add(m)\nbevelSegments=1 obrigatório. Proibido: rx90(), MeshStandardMaterial.',
+    meia_cana:     'APLICAR ACABAMENTO MEIA CANA: seção transversal côncava com quadraticCurveTo. NÃO use rx90(). Proibido MeshStandardMaterial.',
+    ogee:          'APLICAR ACABAMENTO OGEE: seção transversal em S (convexo embaixo + côncavo em cima). NÃO use rx90(). Proibido MeshStandardMaterial.',
+    duplo_boleado: 'APLICAR ACABAMENTO DUPLO BOLEADO.\nUSE EXATAMENTE: const m=ext(s,H,H*0.42,2); m.position.y=0; group.add(m)\nProibido: rx90(), MeshStandardMaterial.',
+    peito_pombo:   'APLICAR ACABAMENTO PEITO DE POMBO: seção transversal com bojo convexo proeminente. NÃO use rx90(). Proibido MeshStandardMaterial.',
   }
   return map[tipo] ?? ''
 }
@@ -381,7 +380,7 @@ app.get('/api/ping', (_req, res) => {
   try {
     const code = `
 const s = rr(1.5, 0.6, 0.01)
-const pl = rx90(ext(s, 0.03, 0.013, 12))
+const pl = ext(s, 0.03, 0.013, 12)
 pl.position.y = 0
 group.add(pl)
 return group`
