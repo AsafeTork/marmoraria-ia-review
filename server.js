@@ -164,6 +164,21 @@ Bancada base: ext(rr(L,D,0.005),H,0,0). PROIBIDO: rx90(), MeshStandardMaterial.`
   return map[tipo] ?? ''
 }
 
+const PROMPT_REVISAO = `REVISÃO OBRIGATÓRIA — analise criticamente o código que você acabou de gerar.
+
+Para cada mesh adicionado ao group, calcule explicitamente:
+  • Intervalo X: de __ até __
+  • Intervalo Y: de __ até __
+  • Intervalo Z: de __ até __
+
+Depois verifique:
+1. ENCAIXE: As bordas se tocam sem gap nem sobreposição? (ex: borda frontal deve estar em Z = D/2, não Z = D/2 + H)
+2. ORIENTAÇÃO: Peças horizontais estão deitadas? Peças verticais estão em pé?
+3. PERFIL: O acabamento de borda corresponde visualmente ao solicitado?
+4. COMPLETUDE: Todas as partes do objeto foram modeladas?
+
+Aponte cada problema encontrado e reescreva o código COMPLETO e CORRIGIDO (apenas o corpo da função, sem markdown, sem wrapper).`
+
 async function gen(descricao, tipo) {
   const sys = await getActivePrompt(tipo)
   const instrucao = getAcabInstrucao(tipo)
@@ -172,31 +187,51 @@ async function gen(descricao, tipo) {
   let best = '', bestV = 0, total = 0, tentativas = 0
   const erros = []
 
-  for (let i = 1; i <= 3; i++) {
-    tentativas = i
+  // Geração inicial
+  for (let i = 1; i <= 2; i++) {
+    tentativas++
     let text, tokens
     try {
       ;({ text, tokens } = await askDS(hist))
     } catch(e) {
-      erros.push(`t${i} DS: ${e.message}`)
+      erros.push(`gen${i} DS: ${e.message}`)
       break
     }
     total += tokens
     const code = extract(text)
+    let genOk = false
     try {
       const { v } = runCode(code)
       if (v > bestV) { bestV = v; best = code }
-      if (v > 500) break
-      if (i < 3) {
-        hist.push({ role: 'assistant', content: text })
-        hist.push({ role: 'user', content: `OK (${v} verts). Melhore o perfil do acabamento, mais bevelSegments.` })
-      }
+      genOk = true
     } catch(e) {
-      erros.push(`t${i} runCode: ${e.message}`)
-      if (i < 3) {
-        hist.push({ role: 'assistant', content: text })
-        hist.push({ role: 'user', content: `Erro: "${e.message}". Corrija e mantenha o acabamento.` })
-      }
+      erros.push(`gen${i} runCode: ${e.message}`)
+    }
+
+    // Auto-revisão obrigatória após cada geração
+    hist.push({ role: 'assistant', content: text })
+    hist.push({ role: 'user', content: genOk ? PROMPT_REVISAO : `Erro de execução: "${erros.at(-1)}". Corrija e reescreva completo.` })
+    tentativas++
+    let revText, revTokens
+    try {
+      ;({ text: revText, tokens: revTokens } = await askDS(hist))
+    } catch(e) {
+      erros.push(`rev${i} DS: ${e.message}`)
+      break
+    }
+    total += revTokens
+    const revCode = extract(revText)
+    try {
+      const { v } = runCode(revCode)
+      if (v > bestV) { bestV = v; best = revCode }
+      if (v > 300) { hist.push({ role: 'assistant', content: revText }); break }
+    } catch(e) {
+      erros.push(`rev${i} runCode: ${e.message}`)
+    }
+
+    if (i < 2) {
+      hist.push({ role: 'assistant', content: revText })
+      hist.push({ role: 'user', content: `Ainda com problemas. Reescreva completamente prestando atenção nas coordenadas.` })
     }
   }
   return { code: best, verts: bestV, tokens: total, tentativas, erros }
